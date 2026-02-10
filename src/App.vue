@@ -48,7 +48,6 @@ const fetchItems = async () => {
     console.log(err);
   }
 }
-
 onMounted(async () => {
   try{
     const {data} = await axios.get('http://localhost:8080/api/products')
