@@ -1,8 +1,8 @@
 <script setup>
-  import {inject} from "vue";
-
-  const {closeDrawer} = inject('cartActions')
+import {inject} from "vue";
+const {closeDrawer} = inject('cartActions')
 </script>
+
 <template>
   <div class="flex items-center gap-5 mb-8">
     <svg
