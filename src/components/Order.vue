@@ -126,7 +126,7 @@ const prevStep = () => {
 const submitOrder = async () => {
   if (!validateStep(3)) return
 
-  const token = localStorage.getItem('jwt_token') || sessionStorage.getItem('jwt_token')
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
   console.log('Token:', token)
   console.log('Cart items:', cartStore.items)

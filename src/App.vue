@@ -17,7 +17,7 @@ const currentUser = ref(null)
 const cartStore = useCartStore()
 
 onMounted(() => {
-  const token = localStorage.getItem('jwt_token')
+  const token = localStorage.getItem('token')
   const user = localStorage.getItem('user')
   if (token && user) {
     isAuthenticated.value = true
@@ -41,7 +41,7 @@ const handleLoginSuccess = (userData) => {
 }
 
 const handleLogout = () => {
-  localStorage.removeItem('jwt_token')
+  localStorage.removeItem('token')
   localStorage.removeItem('user')
   isAuthenticated.value = false
   currentUser.value = null
