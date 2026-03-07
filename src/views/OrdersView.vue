@@ -136,7 +136,7 @@ onMounted(fetchOrders)
               </p>
               <p v-if="order.appointmentTimeSlot" class="text-sm text-gray-600">
                 <span class="font-medium">Время:</span>
-                {{ order.appointmentTimeSlot === 'morning' ? 'Утро' : order.appointmentTimeSlot === 'day' ? 'День' : 'Вечер' }}
+                {{ order.appointmentTimeSlot }}
               </p>
             </div>
             <div class="text-right">

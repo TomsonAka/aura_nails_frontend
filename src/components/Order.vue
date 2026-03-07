@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 
@@ -11,14 +11,51 @@ const totalSteps = 4
 const userPhone = ref('')
 const userName = ref('')
 
+
+const selectedDate = ref('')
+const availableSlots = ref([])
+const isLoadingSlots = ref(false)
+const slotsError = ref('')
+
 const form = reactive({
   name: '',
   phone: '',
-  time: '',
+  selectedSlotId: null,
+  selectedSlotLabel: '',
   paymentMethod: 'later',
   cardNumber: '',
   cardExpiry: '',
   cardCvc: ''
+})
+
+
+const minDate = ref(new Date().toISOString().split('T')[0])
+
+
+watch(selectedDate, async (newDate) => {
+  if (!newDate) {
+    availableSlots.value = []
+    return
+  }
+
+  isLoadingSlots.value = true
+  slotsError.value = ''
+
+  try {
+    const response = await fetch(`http://localhost:8080/api/slots/available?date=${newDate}`)
+    if (response.ok) {
+      availableSlots.value = await response.json()
+      form.selectedSlotId = null
+      form.selectedSlotLabel = ''
+    } else {
+      slotsError.value = 'Не удалось загрузить слоты'
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки слотов:', e)
+    slotsError.value = 'Ошибка соединения'
+  } finally {
+    isLoadingSlots.value = false
+  }
 })
 
 const formatPhone = (value) => {
@@ -105,35 +142,10 @@ onMounted(async () => {
   }
 })
 
-const timeSlots = [
-  {
-    value: 'morning',
-    label: 'Утро',
-    time: '09:00 - 12:00',
-    icon: '🌅',
-    color: 'from-amber-400 to-orange-400',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-300'
-  },
-  {
-    value: 'day',
-    label: 'День',
-    time: '12:00 - 18:00',
-    icon: '☀️',
-    color: 'from-yellow-400 to-orange-400',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-300'
-  },
-  {
-    value: 'evening',
-    label: 'Вечер',
-    time: '18:00 - 21:00',
-    icon: '🌙',
-    color: 'from-indigo-400 to-purple-400',
-    bgColor: 'bg-indigo-50',
-    borderColor: 'border-indigo-300'
-  }
-]
+const selectSlot = (slot) => {
+  form.selectedSlotId = slot.id
+  form.selectedSlotLabel = slot.label
+}
 
 const validateStep = (step) => {
   switch(step) {
@@ -150,8 +162,12 @@ const validateStep = (step) => {
       return true
     }
     case 2: {
-      if (!form.time) {
-        alert('Пожалуйста, выберите время посещения')
+      if (!selectedDate.value) {
+        alert('Пожалуйста, выберите дату')
+        return false
+      }
+      if (!form.selectedSlotId) {
+        alert('Пожалуйста, выберите время')
         return false
       }
       return true
@@ -192,7 +208,7 @@ const submitOrder = async () => {
     const orderPayload = {
       customerName: form.name,
       customerPhone: `+7${digits.slice(0, 3)}${digits.slice(3, 6)}${digits.slice(6, 8)}${digits.slice(8, 10)}`,
-      appointmentTimeSlot: form.time,
+      timeSlotId: form.selectedSlotId,
       productIds: cartStore.items.map(item => item.product?.id || item.id),
       paymentMethod: form.paymentMethod.toUpperCase()
     }
@@ -213,7 +229,8 @@ const submitOrder = async () => {
       cartStore.clearCart()
       router.push('/')
     } else {
-      alert('Ошибка: ' + response.status)
+      const errorData = await response.json().catch(() => ({}))
+      alert('Ошибка: ' + (errorData.message || response.status))
     }
 
   } catch (error) {
@@ -335,7 +352,7 @@ const getStepTitle = (stepNumber) => {
                     @paste="onPhonePaste"
                     type="tel"
                     inputmode="numeric"
-                    pattern="[0-9+\s()\-]{10,20}"
+                    pattern="[0-9+\\s()\\-]{10,20}"
                     placeholder="+7 (999) 000-00-00"
                     class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
@@ -355,45 +372,71 @@ const getStepTitle = (stepNumber) => {
                 </svg>
               </div>
               <div>
-                <h2 class="text-2xl font-bold text-gray-900">Выберите время посещения</h2>
+                <h2 class="text-2xl font-bold text-gray-900">Выберите дату и время</h2>
                 <p class="text-gray-500">Шаг 2 из 4</p>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label
-                v-for="slot in timeSlots"
-                :key="slot.value"
-                class="relative cursor-pointer group"
-              >
-                <input
-                  type="radio"
-                  v-model="form.time"
-                  :value="slot.value"
-                  class="sr-only peer"
-                />
-                <div
-                  :class="[
-                    'p-6 rounded-2xl border-3 transition-all duration-300',
-                    'hover:shadow-xl hover:-translate-y-2',
-                    'peer-checked:ring-4 peer-checked:ring-rose-200 peer-checked:shadow-xl',
-                    slot.bgColor,
-                    form.time === slot.value ? slot.borderColor : 'border-gray-200'
-                  ]"
-                >
-                  <div class="text-4xl mb-3">{{ slot.icon }}</div>
-                  <div class="font-bold text-gray-900 text-lg">{{ slot.label }}</div>
-                  <div class="text-gray-600 mt-1">{{ slot.time }}</div>
-                </div>
-                <div
-                  v-if="form.time === slot.value"
-                  class="absolute top-3 right-3 w-8 h-8 rounded-full bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center shadow-lg"
-                >
-                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+            <div class="space-y-6">
+              <div>
+                <label class="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">
+                  Дата посещения <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="selectedDate"
+                    type="date"
+                    :min="minDate"
+                    class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg"
+                  />
+                  <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                   </svg>
                 </div>
-              </label>
+              </div>
+
+              <div v-if="isLoadingSlots" class="text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500"></div>
+                <p class="mt-2 text-gray-500">Загрузка доступного времени...</p>
+              </div>
+
+              <div v-else-if="slotsError" class="p-4 bg-red-50 border-2 border-red-200 rounded-xl text-red-600 text-center">
+                {{ slotsError }}
+              </div>
+
+              <div v-else-if="selectedDate && availableSlots.length > 0">
+                <label class="block text-sm font-bold text-gray-700 mb-3 uppercase tracking-wide">
+                  Доступное время <span class="text-rose-500">*</span>
+                </label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  <button
+                    v-for="slot in availableSlots"
+                    :key="slot.id"
+                    @click="selectSlot(slot)"
+                    :class="[
+                      'p-4 rounded-xl border-2 transition-all duration-200 text-center',
+                      form.selectedSlotId === slot.id
+                        ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-md'
+                        : 'border-gray-200 hover:border-rose-300 hover:bg-rose-50/30 text-gray-700'
+                    ]"
+                  >
+                    <div class="font-bold text-lg">{{ slot.startTime }}</div>
+                    <div class="text-xs text-gray-500">— {{ slot.endTime }}</div>
+                  </button>
+                </div>
+              </div>
+
+              <div v-else-if="selectedDate && !isLoadingSlots" class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p>На эту дату нет свободного времени</p>
+                <p class="text-sm mt-1">Попробуйте выбрать другую дату</p>
+              </div>
+
+              <div v-else class="text-center py-8 text-gray-400">
+                <p>Выберите дату, чтобы увидеть доступное время</p>
+              </div>
             </div>
           </div>
 
@@ -478,6 +521,7 @@ const getStepTitle = (stepNumber) => {
                       v-model="form.cardCvc"
                       type="text"
                       placeholder="123"
+                      maxlength="3"
                       class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none transition-all"
                     />
                   </div>
@@ -501,7 +545,7 @@ const getStepTitle = (stepNumber) => {
 
             <div class="space-y-6">
               <div class="bg-gradient-to-br from-rose-50 to-pink-50 rounded-2xl p-6 border-2 border-rose-100">
-                <h3 class="font-bold text-gray-900 mb-4 text-lg">Данные заказа</h3>
+                <h3 class="font-bold text-gray-900 mb-4 text-lg">Данные записи</h3>
 
                 <div class="space-y-3">
                   <div class="flex justify-between">
@@ -513,11 +557,12 @@ const getStepTitle = (stepNumber) => {
                     <span class="font-semibold text-gray-900">{{ form.phone }}</span>
                   </div>
                   <div class="flex justify-between">
+                    <span class="text-gray-600">Дата:</span>
+                    <span class="font-semibold text-gray-900">{{ selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU') : '' }}</span>
+                  </div>
+                  <div class="flex justify-between">
                     <span class="text-gray-600">Время:</span>
-                    <span class="font-semibold text-gray-900">
-                      {{ timeSlots.find(s => s.value === form.time)?.label }}
-                      ({{ timeSlots.find(s => s.value === form.time)?.time }})
-                    </span>
+                    <span class="font-semibold text-rose-600">{{ form.selectedSlotLabel }}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="text-gray-600">Оплата:</span>
@@ -627,3 +672,4 @@ const getStepTitle = (stepNumber) => {
   transform: translateY(-10px);
 }
 </style>
+
