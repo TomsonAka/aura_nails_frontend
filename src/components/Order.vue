@@ -45,9 +45,36 @@ const formatPhone = (value) => {
   }
 }
 
-
 const onPhoneInput = (e) => {
-  form.phone = formatPhone(e.target.value)
+  const input = e.target
+  const cursorPos = input.selectionStart
+  const prevLength = input.value.length
+
+  const formatted = formatPhone(input.value)
+  form.phone = formatted
+
+  setTimeout(() => {
+    const newLength = formatted.length
+    const diff = newLength - prevLength
+    input.setSelectionRange(cursorPos + diff, cursorPos + diff)
+  }, 0)
+}
+
+const onPhoneKeydown = (e) => {
+  if ([46, 8, 9, 27, 13].includes(e.keyCode)) return
+  if ((e.ctrlKey || e.metaKey) && [65, 67, 86, 88].includes(e.keyCode)) return
+  if (e.keyCode < 48 || e.keyCode > 57) {
+    if (e.keyCode < 96 || e.keyCode > 105) {
+      e.preventDefault()
+    }
+  }
+}
+
+const onPhonePaste = (e) => {
+  e.preventDefault()
+  const pasted = e.clipboardData.getData('text')
+  const formatted = formatPhone(pasted)
+  form.phone = formatted
 }
 
 onMounted(async () => {
@@ -161,9 +188,10 @@ const submitOrder = async () => {
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
   try {
+    const digits = form.phone.replace(/\D/g, '')
     const orderPayload = {
       customerName: form.name,
-      customerPhone: form.phone, // ← Отправляем как есть, без обработки
+      customerPhone: `+7${digits.slice(0, 3)}${digits.slice(3, 6)}${digits.slice(6, 8)}${digits.slice(8, 10)}`,
       appointmentTimeSlot: form.time,
       productIds: cartStore.items.map(item => item.product?.id || item.id),
       paymentMethod: form.paymentMethod.toUpperCase()
@@ -213,47 +241,50 @@ const getStepTitle = (stepNumber) => {
         <p class="text-gray-600">Заполните данные для записи</p>
       </div>
 
-      <div class="bg-white rounded-3xl shadow-xl p-6 mb-6">
-        <div class="flex items-center justify-between relative">
-          <div class="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 -translate-y-1/2 rounded-full"></div>
-
+      <div class="bg-white rounded-3xl shadow-xl p-4 sm:p-6 mb-6">
+        <div class="relative">
+          <div class="absolute left-0 right-0 top-6 sm:top-8 h-1 bg-gray-200 rounded-full"></div>
           <div
-            class="absolute left-0 top-1/2 h-1 bg-gradient-to-r from-rose-400 to-pink-500 -translate-y-1/2 rounded-full transition-all duration-500"
+            class="absolute left-0 top-6 sm:top-8 h-1 bg-gradient-to-r from-rose-400 to-pink-500 rounded-full transition-all duration-500"
             :style="{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }"
           ></div>
-
-          <div
-            v-for="step in totalSteps"
-            :key="step"
-            class="relative z-10 flex flex-col items-center"
-          >
+          <div class="relative z-10 flex justify-between">
             <div
-              :class="[
-                'w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-500 shadow-lg',
-                currentStep >= step
-                  ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white scale-110'
-                  : 'bg-gray-200 text-gray-500'
-              ]"
+              v-for="step in totalSteps"
+              :key="step"
+              class="flex flex-col items-center flex-1"
             >
-              <svg
-                v-if="currentStep > step"
-                class="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <div
+                :class="[
+                  'w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 shadow-lg',
+                  currentStep >= step
+                    ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white scale-110'
+                    : 'bg-gray-200 text-gray-500'
+                ]"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-              </svg>
-              <span v-else>{{ step }}</span>
+                <svg
+                  v-if="currentStep > step"
+                  class="w-5 h-5 sm:w-6 sm:h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span v-else>{{ step }}</span>
+              </div>
+              <span
+                :class="[
+                  'mt-2 text-xs font-semibold text-center transition-colors duration-300 px-1',
+                  currentStep >= step ? 'text-rose-600' : 'text-gray-400'
+                ]"
+              >
+                <span class="hidden sm:inline">{{ getStepTitle(step) }}</span>
+                <span class="sm:hidden">
+                  {{ step === 1 ? 'Контакты' : step === 2 ? 'Время' : step === 3 ? 'Оплата' : 'Готово' }}
+                </span>
+              </span>
             </div>
-            <span
-              :class="[
-                'mt-2 text-xs font-semibold transition-colors duration-300',
-                currentStep >= step ? 'text-rose-600' : 'text-gray-400'
-              ]"
-            >
-              {{ getStepTitle(step) }}
-            </span>
           </div>
         </div>
       </div>
@@ -261,7 +292,7 @@ const getStepTitle = (stepNumber) => {
       <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
         <transition name="fade" mode="out-in">
 
-          <div v-if="currentStep === 1" key="step1" class="p-8">
+          <div v-if="currentStep === 1" key="step1" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -300,9 +331,13 @@ const getStepTitle = (stepNumber) => {
                   <input
                     :value="form.phone"
                     @input="onPhoneInput"
+                    @keydown="onPhoneKeydown"
+                    @paste="onPhonePaste"
                     type="tel"
+                    inputmode="numeric"
+                    pattern="[0-9+\s()\-]{10,20}"
                     placeholder="+7 (999) 000-00-00"
-                    class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg"
+                    class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
@@ -312,7 +347,7 @@ const getStepTitle = (stepNumber) => {
             </div>
           </div>
 
-          <div v-else-if="currentStep === 2" key="step2" class="p-8">
+          <div v-else-if="currentStep === 2" key="step2" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,7 +397,7 @@ const getStepTitle = (stepNumber) => {
             </div>
           </div>
 
-          <div v-else-if="currentStep === 3" key="step3" class="p-8">
+          <div v-else-if="currentStep === 3" key="step3" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -451,7 +486,7 @@ const getStepTitle = (stepNumber) => {
             </transition>
           </div>
 
-          <div v-else-if="currentStep === 4" key="step4" class="p-8">
+          <div v-else-if="currentStep === 4" key="step4" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -509,11 +544,11 @@ const getStepTitle = (stepNumber) => {
 
         </transition>
 
-        <div class="p-8 bg-gray-50 border-t border-gray-200 flex justify-between">
+        <div class="p-6 sm:p-8 bg-gray-50 border-t border-gray-200 flex justify-between">
           <button
             v-if="currentStep > 1"
             @click="prevStep"
-            class="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-all flex items-center space-x-2"
+            class="px-6 py-3 sm:px-8 sm:py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-all flex items-center space-x-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -525,7 +560,7 @@ const getStepTitle = (stepNumber) => {
           <button
             v-if="currentStep < totalSteps"
             @click="nextStep"
-            class="px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center space-x-2"
+            class="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:from-rose-600 hover:to-pink-600 transition-all flex items-center space-x-2"
           >
             <span>Далее</span>
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -536,7 +571,7 @@ const getStepTitle = (stepNumber) => {
           <button
             v-else
             @click="submitOrder"
-            class="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all flex items-center space-x-2"
+            class="px-6 py-3 sm:px-8 sm:py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-emerald-600 transition-all flex items-center space-x-2"
           >
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>

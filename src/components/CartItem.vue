@@ -11,7 +11,7 @@ const emit = defineEmits(['remove'])
 </script>
 
 <template>
-  <div class="flex items-start sm:items-center border border-slate-200 p-3 sm:p-4 rounded-xl gap-3 sm:gap-4 bg-white">
+  <div class="flex items-start sm:items-center border border-slate-300 p-3 sm:p-4 rounded-xl gap-3 sm:gap-4 bg-white">
     <img
       class="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg"
       :src="imageUrl"
@@ -25,7 +25,7 @@ const emit = defineEmits(['remove'])
       <div class="flex justify-between mt-1 sm:mt-2 items-center">
         <b class="text-sm sm:text-base text-slate-900 whitespace-nowrap">{{ price * quantity }} ₽</b>
         <img
-          class="opacity-40 hover:opacity-100 cursor-pointer transition w-4 h-4 sm:w-5 sm:h-5"
+          class="opacity-100 hover:opacity-110 cursor-pointer transition w-4 h-4 sm:w-5 sm:h-5"
           src="/close.svg"
           @click="emit('remove', id)"
           alt="remove"

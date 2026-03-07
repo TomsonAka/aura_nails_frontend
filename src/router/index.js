@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import CatalogView from '../views/CatalogView.vue'
 import Order from '../components/Order.vue'
+import ProfileView from '@/views/ProfileView.vue'
 
 
 const routes = [
@@ -13,6 +14,12 @@ const routes = [
     path: '/checkout',
     name: 'Checkout',
     component: Order
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
+    meta: { requiresAuth: true }
   },
   {
     path: '/orders',
