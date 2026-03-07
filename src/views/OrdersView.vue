@@ -7,12 +7,12 @@ const loading = ref(true)
 const error = ref(null)
 
 const fetchOrders = async () => {
+  loading.value = true
+  error.value = null
   try {
     const response = await api.get('/api/orders/my')
-    console.log('📦 Orders loaded:', response.data)
     orders.value = response.data
   } catch (err) {
-    console.error('❌ Error:', err)
     error.value = err.response?.status === 401
       ? 'Необходимо авторизоваться'
       : 'Не удалось загрузить заказы'
@@ -20,9 +20,12 @@ const fetchOrders = async () => {
     loading.value = false
   }
 }
+
 const formatDate = (dateString) => {
   if (!dateString) return '—'
-  return new Date(dateString).toLocaleDateString('ru-RU', {
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     year: 'numeric'
@@ -57,12 +60,10 @@ onMounted(fetchOrders)
     <div class="max-w-4xl mx-auto px-4">
       <h1 class="text-2xl font-bold text-gray-900 mb-6">Мои заказы</h1>
 
-
       <div v-if="loading" class="text-center py-12">
         <div class="animate-spin w-8 h-8 border-4 border-rose-400 border-t-transparent rounded-full mx-auto mb-4"></div>
         <p class="text-gray-500">Загрузка заказов...</p>
       </div>
-
 
       <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
         <p class="text-red-600 mb-4">{{ error }}</p>
@@ -73,7 +74,6 @@ onMounted(fetchOrders)
           Попробовать снова
         </button>
       </div>
-
 
       <div v-else-if="orders.length === 0" class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
         <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -91,43 +91,41 @@ onMounted(fetchOrders)
         </router-link>
       </div>
 
-
       <div v-else class="space-y-4">
         <div
           v-for="order in orders"
-          :key="order.id"
+          :key="order.orderId"
           class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
         >
-
           <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-3">
-              <span class="text-sm text-gray-500">Заказ №{{ order.id }}</span>
+              <span class="text-sm text-gray-500">Заказ №{{ order.orderId }}</span>
               <span class="text-sm text-gray-400">•</span>
               <span class="text-sm text-gray-500">{{ formatDate(order.createdAt) }}</span>
             </div>
             <span
               :class="['px-3 py-1 rounded-full text-xs font-medium', getStatusColor(order.status)]"
             >
-              {{ getStatusText(order.status) }}
-            </span>
+             {{ getStatusText(order.status) }}
+           </span>
           </div>
 
           <div class="px-6 py-4">
             <div
               v-for="item in order.items"
-              :key="item.id"
+              :key="item.itemId"
               class="flex items-center gap-4 py-3 border-b border-gray-50 last:border-0 last:pb-0 first:pt-0"
             >
               <img
-                :src="item.product?.imageUrl || '/placeholder-product.png'"
-                :alt="item.product?.name"
+                :src="item.productImageUrl || '/placeholder-product.png'"
+                :alt="item.productName"
                 class="w-16 h-16 object-cover rounded-lg bg-gray-100"
               />
               <div class="flex-1">
-                <h4 class="font-medium text-gray-900">{{ item.product?.name || 'Товар' }}</h4>
+                <h4 class="font-medium text-gray-900">{{ item.productName || 'Товар' }}</h4>
                 <p class="text-sm text-gray-500">{{ item.quantity }} шт. × {{ item.price }} ₽</p>
               </div>
-              <span class="font-semibold text-gray-900">{{ item.price * item.quantity }} ₽</span>
+              <span class="font-semibold text-gray-900">{{ item.subtotal || (item.price * item.quantity) }} ₽</span>
             </div>
           </div>
 
@@ -138,8 +136,7 @@ onMounted(fetchOrders)
               </p>
               <p v-if="order.appointmentTimeSlot" class="text-sm text-gray-600">
                 <span class="font-medium">Время:</span>
-                {{ order.appointmentTimeSlot === 'morning' ? 'Утро' :
-                order.appointmentTimeSlot === 'day' ? 'День' : 'Вечер' }}
+                {{ order.appointmentTimeSlot === 'morning' ? 'Утро' : order.appointmentTimeSlot === 'day' ? 'День' : 'Вечер' }}
               </p>
             </div>
             <div class="text-right">

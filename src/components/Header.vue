@@ -172,9 +172,15 @@ const getInitials = (name) => {
           <span class="text-sm">Корзина ({{ cartStore.totalPrice }} ₽)</span>
         </li>
 
-        <li class="flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-gray-50 cursor-pointer">
-          <img src="/heart.svg" alt="heart" class="w-4 h-4" />
-          <span class="text-sm">Заказы</span>
+        <li>
+          <router-link
+            to="/orders"
+            @click="closeMobileMenu"
+            class="flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-gray-50 cursor-pointer"
+          >
+            <img src="/heart.svg" alt="heart" class="w-4 h-4" />
+            <span class="text-sm">Заказы</span>
+          </router-link>
         </li>
 
         <template v-if="!isAuthenticated">

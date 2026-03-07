@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 
@@ -7,6 +7,9 @@ const router = useRouter()
 const cartStore = useCartStore()
 const currentStep = ref(1)
 const totalSteps = 4
+
+const userPhone = ref('')
+const userName = ref('')
 
 const form = reactive({
   name: '',
@@ -16,6 +19,63 @@ const form = reactive({
   cardNumber: '',
   cardExpiry: '',
   cardCvc: ''
+})
+
+const formatPhone = (value) => {
+  let cleaned = value.replace(/\D/g, '')
+
+  if (cleaned.startsWith('8')) {
+    cleaned = cleaned.slice(1)
+  } else if (cleaned.startsWith('7')) {
+    cleaned = cleaned.slice(1)
+  }
+
+  cleaned = cleaned.slice(0, 10)
+
+  if (cleaned.length === 0) return ''
+
+  if (cleaned.length <= 3) {
+    return `+7 (${cleaned}`
+  } else if (cleaned.length <= 6) {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`
+  } else if (cleaned.length <= 8) {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+  } else {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8, 10)}`
+  }
+}
+
+
+const onPhoneInput = (e) => {
+  form.phone = formatPhone(e.target.value)
+}
+
+onMounted(async () => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+
+  if (token) {
+    try {
+      const response = await fetch('http://localhost:8080/api/user/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+
+        userPhone.value = userData.phone || ''
+        userName.value = userData.username || ''
+
+        if (userPhone.value) {
+          form.phone = formatPhone(userPhone.value)
+        }
+        if (userName.value) {
+          form.name = userName.value
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load user data')
+    }
+  }
 })
 
 const timeSlots = [
@@ -47,34 +107,6 @@ const timeSlots = [
     borderColor: 'border-indigo-300'
   }
 ]
-
-const formatPhone = (value) => {
-  let cleaned = value.replace(/\D/g, '')
-
-  if (cleaned.startsWith('8')) {
-    cleaned = cleaned.slice(1)
-  } else if (cleaned.startsWith('7')) {
-    cleaned = cleaned.slice(1)
-  }
-
-  cleaned = cleaned.slice(0, 10)
-
-  if (cleaned.length === 0) return ''
-
-  if (cleaned.length <= 3) {
-    return `+7 (${cleaned}`
-  } else if (cleaned.length <= 6) {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`
-  } else if (cleaned.length <= 8) {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-  } else {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8, 10)}`
-  }
-}
-
-const onPhoneInput = (e) => {
-  form.phone = formatPhone(e.target.value)
-}
 
 const validateStep = (step) => {
   switch(step) {
@@ -128,19 +160,16 @@ const submitOrder = async () => {
 
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
-  console.log('Token:', token)
-  console.log('Cart items:', cartStore.items)
-
   try {
     const orderPayload = {
       customerName: form.name,
-      customerPhone: form.phone,
+      customerPhone: form.phone, // ← Отправляем как есть, без обработки
       appointmentTimeSlot: form.time,
       productIds: cartStore.items.map(item => item.product?.id || item.id),
       paymentMethod: form.paymentMethod.toUpperCase()
     }
 
-    console.log('Sending order:', orderPayload)
+    console.log('Отправка заказа:', orderPayload)
 
     const response = await fetch('http://localhost:8080/api/orders', {
       method: 'POST',
@@ -156,7 +185,6 @@ const submitOrder = async () => {
       cartStore.clearCart()
       router.push('/')
     } else {
-      console.error('Error status:', response.status)
       alert('Ошибка: ' + response.status)
     }
 

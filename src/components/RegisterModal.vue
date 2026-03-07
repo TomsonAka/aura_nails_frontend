@@ -3,7 +3,7 @@ import { reactive, onMounted, onUnmounted } from 'vue'
 import axios from "axios";
 
 const formData = reactive({
-  email: "",
+  phone: "",
   username: "",
   password: "",
 });
@@ -32,9 +32,53 @@ onUnmounted(() => {
   document.body.style.overflow = ''
 })
 
+
+const formatPhone = (value) => {
+  let cleaned = value.replace(/\D/g, '')
+
+  if (cleaned.startsWith('8')) {
+    cleaned = cleaned.slice(1)
+  } else if (cleaned.startsWith('7')) {
+    cleaned = cleaned.slice(1)
+  }
+
+  cleaned = cleaned.slice(0, 10)
+
+  if (cleaned.length === 0) return ''
+
+  if (cleaned.length <= 3) {
+    return `+7 (${cleaned}`
+  } else if (cleaned.length <= 6) {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`
+  } else if (cleaned.length <= 8) {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+  } else {
+    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8, 10)}`
+  }
+}
+
+const onPhoneInput = (e) => {
+  formData.phone = formatPhone(e.target.value)
+}
+
 const register = () => {
-  console.log('Отправка данных:', formData);
-  axios.post('http://localhost:8080/auth/signup', formData)
+
+  const payload = {
+    ...formData,
+    phone: formData.phone.replace(/\D/g, '')
+  };
+
+  console.log('Отправка данных:', payload);
+  axios.post('http://localhost:8080/auth/signup', payload)
+    .then(response => {
+      console.log('Успех:', response.data);
+      emit('close');
+      emit('switch-to-login'); // автоматически открываем вход
+    })
+    .catch(error => {
+      console.error('Ошибка:', error);
+      alert(error.response?.data || 'Ошибка регистрации');
+    });
 };
 </script>
 
@@ -83,18 +127,19 @@ const register = () => {
 
           <div>
             <label
-              for="email"
+              for="phone"
               class="block text-gray-700 text-xs sm:text-sm font-medium mb-1 sm:mb-2"
             >
-              Email
+              Телефон
             </label>
             <input
-              type="email"
-              id="email"
-              placeholder="Введите email"
-              v-model="formData.email"
+              type="tel"
+              id="phone"
+              placeholder="+7 (999) 000-00-00"
+              :value="formData.phone"
+              @input="onPhoneInput"
               required
-              autocomplete="email"
+              autocomplete="tel"
               class="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-300 focus:border-transparent transition-shadow"
             />
           </div>
