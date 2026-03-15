@@ -73,7 +73,7 @@ const register = () => {
     .then(response => {
       console.log('Успех:', response.data);
       emit('close');
-      emit('switch-to-login'); // автоматически открываем вход
+      emit('switch-to-login');
     })
     .catch(error => {
       console.error('Ошибка:', error);

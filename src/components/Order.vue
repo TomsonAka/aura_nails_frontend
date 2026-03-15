@@ -6,34 +6,61 @@ import { useCartStore } from '@/stores/cart'
 const router = useRouter()
 const cartStore = useCartStore()
 const currentStep = ref(1)
-const totalSteps = 4
+const totalSteps = 5
 
 const userPhone = ref('')
 const userName = ref('')
-
 
 const selectedDate = ref('')
 const availableSlots = ref([])
 const isLoadingSlots = ref(false)
 const slotsError = ref('')
 
+const masters = ref([])
+const isLoadingMasters = ref(false)
+const selectedMaster = ref(null)
+
 const form = reactive({
   name: '',
   phone: '',
   selectedSlotId: null,
   selectedSlotLabel: '',
+  selectedMasterId: null,
+  selectedMasterName: '',
   paymentMethod: 'later',
   cardNumber: '',
   cardExpiry: '',
   cardCvc: ''
 })
 
-
 const minDate = ref(new Date().toISOString().split('T')[0])
 
+const fetchMasters = async () => {
+  isLoadingMasters.value = true
+  try {
+    const response = await fetch('http://localhost:8080/api/masters')
+    if (response.ok) {
+      masters.value = await response.json()
+    }
+  } catch (e) {
+    console.error('Ошибка загрузки мастеров:', e)
+  } finally {
+    isLoadingMasters.value = false
+  }
+}
+
+const selectMaster = (master) => {
+  selectedMaster.value = master
+  form.selectedMasterId = master.id
+  form.selectedMasterName = master.name
+  form.selectedSlotId = null
+  form.selectedSlotLabel = ''
+  availableSlots.value = []
+  selectedDate.value = ''
+}
 
 watch(selectedDate, async (newDate) => {
-  if (!newDate) {
+  if (!newDate || !form.selectedMasterId) {
     availableSlots.value = []
     return
   }
@@ -42,7 +69,9 @@ watch(selectedDate, async (newDate) => {
   slotsError.value = ''
 
   try {
-    const response = await fetch(`http://localhost:8080/api/slots/available?date=${newDate}`)
+    const response = await fetch(
+      `http://localhost:8080/api/slots/available?date=${newDate}&masterId=${form.selectedMasterId}`
+    )
     if (response.ok) {
       availableSlots.value = await response.json()
       form.selectedSlotId = null
@@ -60,36 +89,22 @@ watch(selectedDate, async (newDate) => {
 
 const formatPhone = (value) => {
   let cleaned = value.replace(/\D/g, '')
-
-  if (cleaned.startsWith('8')) {
-    cleaned = cleaned.slice(1)
-  } else if (cleaned.startsWith('7')) {
-    cleaned = cleaned.slice(1)
-  }
-
+  if (cleaned.startsWith('8')) cleaned = cleaned.slice(1)
+  else if (cleaned.startsWith('7')) cleaned = cleaned.slice(1)
   cleaned = cleaned.slice(0, 10)
-
   if (cleaned.length === 0) return ''
-
-  if (cleaned.length <= 3) {
-    return `+7 (${cleaned}`
-  } else if (cleaned.length <= 6) {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`
-  } else if (cleaned.length <= 8) {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-  } else {
-    return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8, 10)}`
-  }
+  if (cleaned.length <= 3) return `+7 (${cleaned}`
+  else if (cleaned.length <= 6) return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`
+  else if (cleaned.length <= 8) return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+  else return `+7 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 8)}-${cleaned.slice(8, 10)}`
 }
 
 const onPhoneInput = (e) => {
   const input = e.target
   const cursorPos = input.selectionStart
   const prevLength = input.value.length
-
   const formatted = formatPhone(input.value)
   form.phone = formatted
-
   setTimeout(() => {
     const newLength = formatted.length
     const diff = newLength - prevLength
@@ -101,40 +116,30 @@ const onPhoneKeydown = (e) => {
   if ([46, 8, 9, 27, 13].includes(e.keyCode)) return
   if ((e.ctrlKey || e.metaKey) && [65, 67, 86, 88].includes(e.keyCode)) return
   if (e.keyCode < 48 || e.keyCode > 57) {
-    if (e.keyCode < 96 || e.keyCode > 105) {
-      e.preventDefault()
-    }
+    if (e.keyCode < 96 || e.keyCode > 105) e.preventDefault()
   }
 }
 
 const onPhonePaste = (e) => {
   e.preventDefault()
   const pasted = e.clipboardData.getData('text')
-  const formatted = formatPhone(pasted)
-  form.phone = formatted
+  form.phone = formatPhone(pasted)
 }
 
 onMounted(async () => {
+  await fetchMasters()
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-
   if (token) {
     try {
       const response = await fetch('http://localhost:8080/api/user/me', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-
       if (response.ok) {
         const userData = await response.json()
-
         userPhone.value = userData.phone || ''
         userName.value = userData.username || ''
-
-        if (userPhone.value) {
-          form.phone = formatPhone(userPhone.value)
-        }
-        if (userName.value) {
-          form.name = userName.value
-        }
+        if (userPhone.value) form.phone = formatPhone(userPhone.value)
+        if (userName.value) form.name = userName.value
       }
     } catch (e) {
       console.error('Failed to load user data')
@@ -144,7 +149,7 @@ onMounted(async () => {
 
 const selectSlot = (slot) => {
   form.selectedSlotId = slot.id
-  form.selectedSlotLabel = slot.label
+  form.selectedSlotLabel = slot.label || `${slot.startTime} — ${slot.endTime}`
 }
 
 const validateStep = (step) => {
@@ -162,6 +167,13 @@ const validateStep = (step) => {
       return true
     }
     case 2: {
+      if (!form.selectedMasterId) {
+        alert('Пожалуйста, выберите мастера')
+        return false
+      }
+      return true
+    }
+    case 3: {
       if (!selectedDate.value) {
         alert('Пожалуйста, выберите дату')
         return false
@@ -172,7 +184,7 @@ const validateStep = (step) => {
       }
       return true
     }
-    case 3: {
+    case 4: {
       if (form.paymentMethod === 'online') {
         if (!form.cardNumber || !form.cardExpiry || !form.cardCvc) {
           alert('Пожалуйста, заполните все данные карты')
@@ -193,13 +205,11 @@ const nextStep = () => {
 }
 
 const prevStep = () => {
-  if (currentStep.value > 1) {
-    currentStep.value--
-  }
+  if (currentStep.value > 1) currentStep.value--
 }
 
 const submitOrder = async () => {
-  if (!validateStep(3)) return
+  if (!validateStep(4)) return
 
   const token = localStorage.getItem('token') || sessionStorage.getItem('token')
 
@@ -207,13 +217,12 @@ const submitOrder = async () => {
     const digits = form.phone.replace(/\D/g, '')
     const orderPayload = {
       customerName: form.name,
-      customerPhone: `+7${digits.slice(0, 3)}${digits.slice(3, 6)}${digits.slice(6, 8)}${digits.slice(8, 10)}`,
+      customerPhone: `+7${digits.slice(1, 4)}${digits.slice(4, 7)}${digits.slice(7, 9)}${digits.slice(9, 11)}`,
+      masterId: form.selectedMasterId,
       timeSlotId: form.selectedSlotId,
       productIds: cartStore.items.map(item => item.product?.id || item.id),
       paymentMethod: form.paymentMethod.toUpperCase()
     }
-
-    console.log('Отправка заказа:', orderPayload)
 
     const response = await fetch('http://localhost:8080/api/orders', {
       method: 'POST',
@@ -225,14 +234,13 @@ const submitOrder = async () => {
     })
 
     if (response.ok) {
-      alert('Заказ успешно оформлен! 🎉')
+      alert('Заказ успешно оформлен!')
       cartStore.clearCart()
       router.push('/')
     } else {
       const errorData = await response.json().catch(() => ({}))
       alert('Ошибка: ' + (errorData.message || response.status))
     }
-
   } catch (error) {
     console.error('Ошибка:', error)
     alert('Не удалось оформить заказ')
@@ -242,9 +250,10 @@ const submitOrder = async () => {
 const getStepTitle = (stepNumber) => {
   const titles = {
     1: 'Контактная информация',
-    2: 'Выберите время',
-    3: 'Способ оплаты',
-    4: 'Подтверждение'
+    2: 'Выбор мастера',
+    3: 'Дата и время',
+    4: 'Способ оплаты',
+    5: 'Подтверждение'
   }
   return titles[stepNumber]
 }
@@ -273,19 +282,13 @@ const getStepTitle = (stepNumber) => {
             >
               <div
                 :class="[
-                  'w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 shadow-lg',
+                  'w-8 h-8 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 shadow-lg',
                   currentStep >= step
                     ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white scale-110'
                     : 'bg-gray-200 text-gray-500'
                 ]"
               >
-                <svg
-                  v-if="currentStep > step"
-                  class="w-5 h-5 sm:w-6 sm:h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg v-if="currentStep > step" class="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
                 </svg>
                 <span v-else>{{ step }}</span>
@@ -298,7 +301,7 @@ const getStepTitle = (stepNumber) => {
               >
                 <span class="hidden sm:inline">{{ getStepTitle(step) }}</span>
                 <span class="sm:hidden">
-                  {{ step === 1 ? 'Контакты' : step === 2 ? 'Время' : step === 3 ? 'Оплата' : 'Готово' }}
+                  {{ step === 1 ? 'Контакты' : step === 2 ? 'Мастер' : step === 3 ? 'Время' : step === 4 ? 'Оплата' : 'Готово' }}
                 </span>
               </span>
             </div>
@@ -318,7 +321,7 @@ const getStepTitle = (stepNumber) => {
               </div>
               <div>
                 <h2 class="text-2xl font-bold text-gray-900">Контактная информация</h2>
-                <p class="text-gray-500">Шаг 1 из 4</p>
+                <p class="text-gray-500">Шаг 1 из 5</p>
               </div>
             </div>
 
@@ -352,9 +355,8 @@ const getStepTitle = (stepNumber) => {
                     @paste="onPhonePaste"
                     type="tel"
                     inputmode="numeric"
-                    pattern="[0-9+\\s()\\-]{10,20}"
                     placeholder="+7 (999) 000-00-00"
-                    class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:border-rose-400 focus:ring-4 focus:ring-rose-100 transition-all outline-none text-lg"
                   />
                   <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
@@ -368,12 +370,65 @@ const getStepTitle = (stepNumber) => {
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-2xl font-bold text-gray-900">Выбор мастера</h2>
+                <p class="text-gray-500">Шаг 2 из 5</p>
+              </div>
+            </div>
+
+            <div v-if="isLoadingMasters" class="text-center py-8">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500"></div>
+              <p class="mt-2 text-gray-500">Загрузка мастеров...</p>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div
+                v-for="master in masters"
+                :key="master.id"
+                @click="selectMaster(master)"
+                :class="[
+                  'p-5 rounded-2xl border-2 cursor-pointer transition-all duration-200 flex items-center space-x-4',
+                  form.selectedMasterId === master.id
+                    ? 'border-rose-500 bg-rose-50 shadow-md'
+                    : 'border-gray-200 hover:border-rose-300 hover:bg-rose-50/30'
+                ]"
+              >
+                <div class="w-16 h-16 rounded-full bg-gradient-to-br from-rose-300 to-pink-400 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+                  {{ master.name.charAt(0) }}
+                </div>
+                <div class="flex-1">
+                  <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-lg text-gray-900">{{ master.name }}</h3>
+                    <div v-if="form.selectedMasterId === master.id" class="w-6 h-6 rounded-full bg-rose-500 flex items-center justify-center">
+                      <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                  </div>
+                  <p v-if="master.specialization" class="text-sm text-gray-600 mt-1">{{ master.specialization }}</p>
+                  <p v-if="master.rating" class="text-sm text-rose-600 mt-1">★ {{ master.rating }}</p>
+                </div>
+              </div>
+
+              <div v-if="masters.length === 0" class="text-center py-8 text-gray-500">
+                <p>Нет доступных мастеров</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="currentStep === 3" key="step3" class="p-6 sm:p-8">
+            <div class="flex items-center space-x-3 mb-8">
+              <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
               </div>
               <div>
                 <h2 class="text-2xl font-bold text-gray-900">Выберите дату и время</h2>
-                <p class="text-gray-500">Шаг 2 из 4</p>
+                <p class="text-gray-500">Шаг 3 из 5 • {{ form.selectedMasterName }}</p>
               </div>
             </div>
 
@@ -440,7 +495,7 @@ const getStepTitle = (stepNumber) => {
             </div>
           </div>
 
-          <div v-else-if="currentStep === 3" key="step3" class="p-6 sm:p-8">
+          <div v-else-if="currentStep === 4" key="step4" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -449,7 +504,7 @@ const getStepTitle = (stepNumber) => {
               </div>
               <div>
                 <h2 class="text-2xl font-bold text-gray-900">Способ оплаты</h2>
-                <p class="text-gray-500">Шаг 3 из 4</p>
+                <p class="text-gray-500">Шаг 4 из 5</p>
               </div>
             </div>
 
@@ -530,7 +585,7 @@ const getStepTitle = (stepNumber) => {
             </transition>
           </div>
 
-          <div v-else-if="currentStep === 4" key="step4" class="p-6 sm:p-8">
+          <div v-else-if="currentStep === 5" key="step5" class="p-6 sm:p-8">
             <div class="flex items-center space-x-3 mb-8">
               <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 flex items-center justify-center">
                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,7 +594,7 @@ const getStepTitle = (stepNumber) => {
               </div>
               <div>
                 <h2 class="text-2xl font-bold text-gray-900">Подтверждение заказа</h2>
-                <p class="text-gray-500">Шаг 4 из 4</p>
+                <p class="text-gray-500">Шаг 5 из 5</p>
               </div>
             </div>
 
@@ -557,6 +612,10 @@ const getStepTitle = (stepNumber) => {
                     <span class="font-semibold text-gray-900">{{ form.phone }}</span>
                   </div>
                   <div class="flex justify-between">
+                    <span class="text-gray-600">Мастер:</span>
+                    <span class="font-semibold text-rose-600">{{ form.selectedMasterName }}</span>
+                  </div>
+                  <div class="flex justify-between">
                     <span class="text-gray-600">Дата:</span>
                     <span class="font-semibold text-gray-900">{{ selectedDate ? new Date(selectedDate).toLocaleDateString('ru-RU') : '' }}</span>
                   </div>
@@ -567,7 +626,7 @@ const getStepTitle = (stepNumber) => {
                   <div class="flex justify-between">
                     <span class="text-gray-600">Оплата:</span>
                     <span class="font-semibold text-gray-900">
-                      {{ form.paymentMethod === 'online' ? '💳 Онлайн' : '💵 При получении' }}
+                      {{ form.paymentMethod === 'online' ? 'Онлайн' : 'При получении' }}
                     </span>
                   </div>
                 </div>
@@ -646,30 +705,24 @@ const getStepTitle = (stepNumber) => {
 .fade-leave-active {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
-
 .fade-enter-from {
   opacity: 0;
   transform: translateX(20px);
 }
-
 .fade-leave-to {
   opacity: 0;
   transform: translateX(-20px);
 }
-
 .slide-enter-active,
 .slide-leave-active {
   transition: all 0.3s ease;
 }
-
 .slide-enter-from {
   opacity: 0;
   transform: translateY(-10px);
 }
-
 .slide-leave-to {
   opacity: 0;
   transform: translateY(-10px);
 }
 </style>
-

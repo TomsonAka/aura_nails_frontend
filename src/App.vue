@@ -1,12 +1,15 @@
 <script setup>
-import { provide, ref, onMounted } from 'vue'
+import { provide, ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import Header from './components/Header.vue'
 import Drawer from './components/Drawer.vue'
 import ProfileSignin from './components/ProfileSignin.vue'
 import RegisterModal from './components/RegisterModal.vue'
+import ReviewsCarousel from './views/ReviewsCarousel.vue'
 import Footer from './components/Footer.vue'
 
+const route = useRoute()
 
 const drawerOpen = ref(false)
 const showModal = ref(false)
@@ -25,6 +28,8 @@ onMounted(() => {
     cartStore.loadCart()
   }
 })
+
+const isAdminPage = computed(() => route.path.startsWith('/admin'))
 
 const closeDrawer = () => { drawerOpen.value = false }
 const openDrawer = () => { drawerOpen.value = true }
@@ -53,23 +58,24 @@ provide('auth', { isAuthenticated, currentUser, handleLogout })
 </script>
 
 <template>
-  <Drawer v-if="drawerOpen" @close="closeDrawer" />
+  <Drawer v-if="drawerOpen && !isAdminPage" @close="closeDrawer" />
 
   <ProfileSignin
-    v-if="showModal && currentModal === 'login'"
+    v-if="showModal && currentModal === 'login' && !isAdminPage"
     @close="closeModal"
     @switch-to-register="switchToRegister"
     @login-success="handleLoginSuccess"
   />
 
   <RegisterModal
-    v-if="showModal && currentModal === 'register'"
+    v-if="showModal && currentModal === 'register' && !isAdminPage"
     @close="closeModal"
     @switch-to-login="switchToLogin"
     @login-success="handleLoginSuccess"
   />
 
   <Header
+    v-if="!isAdminPage"
     @open-drawer="openDrawer"
     :open-modal="openModal"
     :is-authenticated="isAuthenticated"
@@ -77,8 +83,8 @@ provide('auth', { isAuthenticated, currentUser, handleLogout })
     @logout="handleLogout"
   />
 
-
   <router-view />
-  <Footer />
 
+  <ReviewsCarousel v-if="!isAdminPage" />
+  <Footer v-if="!isAdminPage" />
 </template>

@@ -103,6 +103,18 @@ const goHome = () => {
         <span class="whitespace-nowrap">{{ cartStore.totalPrice }} ₽</span>
       </li>
 
+      <li>
+        <router-link
+          to="/masters"
+          class="flex items-center cursor-pointer gap-1 sm:gap-2 md:gap-3 text-gray-500 hover:text-black text-xs sm:text-sm md:text-base"
+        >
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <span class="hidden sm:inline">Мастера</span>
+        </router-link>
+      </li>
+
       <template v-if="!isAuthenticated">
         <li
           @click="props.openModal"
@@ -179,7 +191,6 @@ const goHome = () => {
     >
       <ul class="flex flex-col gap-1.5">
         <template v-if="isAuthenticated">
-
           <li class="bg-gray-50 rounded-xl p-3">
             <router-link
               to="/profile"
@@ -216,6 +227,19 @@ const goHome = () => {
         >
           <img src="/cart.svg" alt="cart" class="w-4 h-4" />
           <span class="text-sm">Корзина ({{ cartStore.totalPrice }} ₽)</span>
+        </li>
+
+        <li>
+          <router-link
+            to="/masters"
+            @click="closeMobileMenu"
+            class="flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-gray-50 cursor-pointer"
+          >
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <span class="text-sm">Мастера</span>
+          </router-link>
         </li>
 
         <li>

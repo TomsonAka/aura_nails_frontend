@@ -138,6 +138,9 @@ onMounted(fetchOrders)
                 <span class="font-medium">Время:</span>
                 {{ order.appointmentTimeSlot }}
               </p>
+              <p v-if="order.masterName" class="text-sm text-gray-600">
+                <span class="font-medium">Мастер:</span> {{order.masterName }}
+              </p>
             </div>
             <div class="text-right">
               <p class="text-sm text-gray-500 mb-1">Итого</p>
