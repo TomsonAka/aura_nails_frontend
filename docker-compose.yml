@@ -1,0 +1,12 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: aura_nails_front
+
+    ports:
+      - "5173:5173"
+
+    restart: unless-stopped
